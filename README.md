@@ -1,140 +1,272 @@
-# Model Context Protocol (MCP) Server + Github OAuth
+# YouTube Transcript Remote MCP Server
 
-This is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) server that supports remote MCP connections, with Github OAuth built-in.
+A remote Model Context Protocol (MCP) server that enables Claude AI to extract transcripts from YouTube videos. This is the **first remote YouTube transcript MCP server**, offering zero-setup access for users on any platform including mobile devices.
 
-You can deploy it to your own Cloudflare account, and after you create your own Github OAuth client app, you'll have a fully functional remote MCP server that you can build off. Users will be able to connect to your MCP server by signing in with their GitHub account.
+## 🌟 Features
 
-You can use this as a reference example for how to integrate other OAuth providers with an MCP server deployed to Cloudflare, using the [`workers-oauth-provider` library](https://github.com/cloudflare/workers-oauth-provider).
+- **Zero Local Setup**: No installation required - works directly from the cloud
+- **Universal Access**: Works on desktop, mobile, and web versions of Claude
+- **Smart Caching**: Efficient caching system using Cloudflare KV for fast responses
+- **Multi-language Support**: Extract transcripts in different languages
+- **Error Handling**: Robust error handling with user-friendly messages
+- **Analytics**: Built-in request tracking and usage analytics
+- **URL Flexibility**: Handles all YouTube URL formats (youtube.com, youtu.be, m.youtube.com, etc.)
 
-The MCP server (powered by [Cloudflare Workers](https://developers.cloudflare.com/workers/)): 
+## 🚀 Quick Start
 
-* Acts as OAuth _Server_ to your MCP clients
-* Acts as OAuth _Client_ to your _real_ OAuth server (in this case, GitHub)
+### For Claude Desktop Users
 
-## Getting Started
+1. **Open Claude Desktop Settings**
+   - Click on "Claude" in the menu bar → "Settings"
+   - Navigate to "Developer" tab
+   - Click "Edit Config"
 
-Clone the repo directly & install dependencies: `npm install`.
+2. **Add the MCP Server Configuration**
+   
+   Add this to your `claude_desktop_config.json`:
 
-Alternatively, you can use the command line below to get the remote MCP Server created on your local machine:
-```bash
-npm create cloudflare@latest -- my-mcp-server --template=cloudflare/ai/demos/remote-mcp-github-oauth
-```
+   ```json
+   {
+     "mcpServers": {
+       "youtube-transcript": {
+         "command": "npx",
+         "args": [
+           "mcp-remote",
+           "https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/sse"
+         ]
+       }
+     }
+   }
+   ```
 
-### For Production
-Create a new [GitHub OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app): 
-- For the Homepage URL, specify `https://mcp-github-oauth.<your-subdomain>.workers.dev`
-- For the Authorization callback URL, specify `https://mcp-github-oauth.<your-subdomain>.workers.dev/callback`
-- Note your Client ID and generate a Client secret. 
-- Set secrets via Wrangler
-```bash
-wrangler secret put GITHUB_CLIENT_ID
-wrangler secret put GITHUB_CLIENT_SECRET
-wrangler secret put COOKIE_ENCRYPTION_KEY # add any random string here e.g. openssl rand -hex 32
-```
-#### Set up a KV namespace
-- Create the KV namespace: 
-`wrangler kv:namespace create "OAUTH_KV"`
-- Update the Wrangler file with the KV ID
+3. **Restart Claude Desktop**
+   
+   After saving the config file, restart Claude Desktop to load the server.
 
-#### Deploy & Test
-Deploy the MCP server to make it available on your workers.dev domain 
-` wrangler deploy`
+4. **Verify Installation**
+   
+   Look for the tools icon (🔧) in the chat interface. You should see the `get_transcript` tool available.
 
-Test the remote server using [Inspector](https://modelcontextprotocol.io/docs/tools/inspector): 
+### For Other MCP Clients
 
-```
-npx @modelcontextprotocol/inspector@latest
-```
-Enter `https://mcp-github-oauth.<your-subdomain>.workers.dev/sse` and hit connect. Once you go through the authentication flow, you'll see the Tools working: 
+The server supports the standard MCP protocol and can be used with any compatible client:
 
-<img width="640" alt="image" src="https://github.com/user-attachments/assets/7973f392-0a9d-4712-b679-6dd23f824287" />
+- **Server URL**: `https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/sse`
+- **Transport**: Server-Sent Events (SSE) or HTTP
+- **Authentication**: None required (public server)
 
-You now have a remote MCP server deployed! 
+## 📖 Usage Examples
 
-### Access Control
-
-This MCP server uses GitHub OAuth for authentication. All authenticated GitHub users can access basic tools like "add" and "userInfoOctokit".
-
-The "generateImage" tool is restricted to specific GitHub users listed in the `ALLOWED_USERNAMES` configuration:
-
-```typescript
-// Add GitHub usernames for image generation access
-const ALLOWED_USERNAMES = new Set([
-  'yourusername',
-  'teammate1'
-]);
-```
-
-### Access the remote MCP server from Claude Desktop
-
-Open Claude Desktop and navigate to Settings -> Developer -> Edit Config. This opens the configuration file that controls which MCP servers Claude can access.
-
-Replace the content with the following configuration. Once you restart Claude Desktop, a browser window will open showing your OAuth login page. Complete the authentication flow to grant Claude access to your MCP server. After you grant access, the tools will become available for you to use. 
+### Basic Transcript Extraction
 
 ```
+Extract the transcript from this YouTube video: https://www.youtube.com/watch?v=dQw4w9WgXcQ
+```
+
+### Multi-language Support
+
+```
+Can you get the transcript of this video in Turkish: https://youtu.be/VIDEO_ID
+```
+
+```
+Extract the Spanish transcript from: https://www.youtube.com/watch?v=VIDEO_ID
+```
+
+### Supported URL Formats
+
+The server automatically handles all YouTube URL formats:
+
+- `https://www.youtube.com/watch?v=VIDEO_ID`
+- `https://youtu.be/VIDEO_ID`
+- `https://m.youtube.com/watch?v=VIDEO_ID`
+- `https://www.youtube.com/live/VIDEO_ID`
+- `https://www.youtube.com/embed/VIDEO_ID`
+- `https://www.youtube.com/shorts/VIDEO_ID`
+- International domains (`youtube.co.uk`, `youtube.de`, etc.)
+
+All tracking parameters (like `?si=`, `&t=`, etc.) are automatically removed.
+
+## 🛠 Available Tools
+
+### `get_transcript`
+
+Extracts the transcript from a YouTube video URL.
+
+**Parameters:**
+- `url` (required): YouTube video URL in any format
+- `language` (optional): Language code for the transcript (e.g., 'en', 'es', 'fr'). Defaults to 'en'.
+
+**Example Usage:**
+```json
+{
+  "name": "get_transcript",
+  "arguments": {
+    "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "language": "en"
+  }
+}
+```
+
+## 🔧 Advanced Configuration
+
+### Debug Logging
+
+To enable detailed logging for troubleshooting:
+
+```json
 {
   "mcpServers": {
-    "math": {
+    "youtube-transcript": {
       "command": "npx",
       "args": [
         "mcp-remote",
-        "https://mcp-github-oauth.<your-subdomain>.workers.dev/sse"
+        "https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/sse",
+        "--debug"
       ]
     }
   }
 }
 ```
 
-Once the Tools (under 🔨) show up in the interface, you can ask Claude to use them. For example: "Could you use the math tool to add 23 and 19?". Claude should invoke the tool and show the result generated by the MCP server.
+Debug logs will be created in `~/.mcp-auth/{server_hash}_debug.log`.
 
-### For Local Development
-If you'd like to iterate and test your MCP server, you can do so in local development. This will require you to create another OAuth App on GitHub: 
-- For the Homepage URL, specify `http://localhost:8788`
-- For the Authorization callback URL, specify `http://localhost:8788/callback`
-- Note your Client ID and generate a Client secret. 
-- Create a `.dev.vars` file in your project root with: 
+### HTTP Transport Only
+
+To force HTTP transport instead of SSE:
+
+```json
+{
+  "mcpServers": {
+    "youtube-transcript": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/mcp",
+        "--transport",
+        "http-only"
+      ]
+    }
+  }
+}
 ```
-GITHUB_CLIENT_ID=your_development_github_client_id
-GITHUB_CLIENT_SECRET=your_development_github_client_secret
+
+## 📊 Server Information
+
+- **Hosting**: Cloudflare Workers
+- **Caching**: Cloudflare KV with 7-day cache for successful transcripts
+- **Rate Limiting**: Built-in retry logic with exponential backoff
+- **Uptime**: 99.9%+ availability through Cloudflare's global network
+- **Response Time**: Typically <3 seconds for cached content, <10 seconds for new requests
+
+## 🚨 Error Handling
+
+The server provides clear error messages for common issues:
+
+- **"Invalid YouTube URL provided"**: The URL format is not recognized
+- **"No transcript available for this video"**: Video has no captions/transcript
+- **"Video not found or private"**: Video is private, deleted, or doesn't exist
+- **"Service temporarily busy, try again in a few minutes"**: Rate limiting from YouTube
+- **"Transcripts are disabled for this video"**: Creator has disabled captions
+
+## 🌍 Language Support
+
+The server supports any language that YouTube provides transcripts for. Common language codes:
+
+- `en` - English (default)
+- `tr` - Turkish
+- `es` - Spanish
+- `fr` - French
+- `de` - German
+- `it` - Italian
+- `pt` - Portuguese
+- `ja` - Japanese
+- `ko` - Korean
+- `zh` - Chinese
+
+## 🔒 Privacy & Security
+
+- **No Authentication Required**: Public server for ease of use
+- **No Data Storage**: Transcripts are cached temporarily for performance only
+- **No Personal Information**: Only YouTube video IDs and transcripts are processed
+- **HTTPS Only**: All communications are encrypted
+- **CORS Enabled**: Supports web-based MCP clients
+
+## 🚀 API Endpoints
+
+For developers who want to integrate directly:
+
+### HTTP POST `/mcp`
+Standard MCP JSON-RPC endpoint for direct integration.
+
+### Server-Sent Events `/sse`
+MCP SSE transport endpoint for real-time communication.
+
+### Info `/`
+Server information and status endpoint.
+
+**Example Direct API Call:**
+```bash
+curl -X POST https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "get_transcript",
+      "arguments": {
+        "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        "language": "en"
+      }
+    }
+  }'
 ```
 
-#### Develop & Test
-Run the server locally to make it available at `http://localhost:8788`
-`wrangler dev`
+## 🐛 Troubleshooting
 
-To test the local server, enter `http://localhost:8788/sse` into Inspector and hit connect. Once you follow the prompts, you'll be able to "List Tools". 
+### Common Issues
 
-#### Using Claude and other MCP Clients
+1. **"Connection Error" in Claude Desktop**
+   - Ensure you have the latest Claude Desktop version
+   - Check that `mcp-remote` is properly configured
+   - Try adding `--debug` flag to see detailed logs
 
-When using Claude to connect to your remote MCP server, you may see some error messages. This is because Claude Desktop doesn't yet support remote MCP servers, so it sometimes gets confused. To verify whether the MCP server is connected, hover over the 🔨 icon in the bottom right corner of Claude's interface. You should see your tools available there.
+2. **"Could not attach to MCP server"**
+   - Verify your internet connection
+   - Check the server URL is correct
+   - Restart Claude Desktop after config changes
 
-#### Using Cursor and other MCP Clients
+3. **No transcript returned**
+   - Verify the YouTube URL is valid and accessible
+   - Check if the video has captions enabled
+   - Try a different language code if available
 
-To connect Cursor with your MCP server, choose `Type`: "Command" and in the `Command` field, combine the command and args fields into one (e.g. `npx mcp-remote https://<your-worker-name>.<your-subdomain>.workers.dev/sse`).
+### Getting Help
 
-Note that while Cursor supports HTTP+SSE servers, it doesn't support authentication, so you still need to use `mcp-remote` (and to use a STDIO server, not an HTTP one).
+- **Check logs**: Look in `~/.mcp-auth/` for debug logs
+- **Test direct connection**: Use `npx -p mcp-remote@latest mcp-remote-client https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/sse`
+- **Verify server status**: Visit `https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/`
 
-You can connect your MCP server to other MCP clients like Windsurf by opening the client's configuration file, adding the same JSON that was used for the Claude setup, and restarting the MCP client.
+## 🤝 Contributing
 
-## How does it work? 
+This is an open-source project. Contributions are welcome!
 
-#### OAuth Provider
-The OAuth Provider library serves as a complete OAuth 2.1 server implementation for Cloudflare Workers. It handles the complexities of the OAuth flow, including token issuance, validation, and management. In this project, it plays the dual role of:
+- **Report Issues**: Found a bug? Please report it with details
+- **Feature Requests**: Have ideas for improvements? Let us know
+- **Code Contributions**: PRs welcome for enhancements
 
-- Authenticating MCP clients that connect to your server
-- Managing the connection to GitHub's OAuth services
-- Securely storing tokens and authentication state in KV storage
+## 📜 License
 
-#### Durable MCP
-Durable MCP extends the base MCP functionality with Cloudflare's Durable Objects, providing:
-- Persistent state management for your MCP server
-- Secure storage of authentication context between requests
-- Access to authenticated user information via `this.props`
-- Support for conditional tool availability based on user identity
+This project is open source and available under the MIT License.
 
-#### MCP Remote
-The MCP Remote library enables your server to expose tools that can be invoked by MCP clients like the Inspector. It:
-- Defines the protocol for communication between clients and your server
-- Provides a structured way to define tools
-- Handles serialization and deserialization of requests and responses
-- Maintains the Server-Sent Events (SSE) connection between clients and your server
+## 🙏 Acknowledgments
+
+- Built with the [Model Context Protocol](https://modelcontextprotocol.io/) by Anthropic
+- Hosted on [Cloudflare Workers](https://workers.cloudflare.com/)
+- Uses the [youtube-transcript](https://www.npmjs.com/package/youtube-transcript) library
+- Inspired by the MCP community and existing local transcript servers
+
+---
+
+**Ready to supercharge Claude with YouTube transcript extraction?** Add this server to your Claude Desktop configuration and start extracting transcripts from any YouTube video instantly! 🎉

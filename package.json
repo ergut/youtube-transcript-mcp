@@ -23,7 +23,9 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250525.0",
+    "@types/mustache": "^4.2.6",
     "@types/url-parse": "^1.4.11",
+    "mustache": "^4.2.0",
     "prettier": "^3.5.3",
     "typescript": "^5.8.3",
     "wrangler": "^4.18.0"
