@@ -1,4 +1,4 @@
-// Assuming TRANSCRIPT_KV is bound in the environment (env.TRANSCRIPT_KV)
+// Assuming TRANSCRIPT_CACHE is bound in the environment (env.TRANSCRIPT_CACHE)
 
 const ANALYTICS_TTL_SECONDS = 60 * 60 * 24; // 24 hours for general stats
 const POPULAR_VIDEOS_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days for popular videos list
@@ -42,8 +42,8 @@ export async function logRequest(
   success: boolean,
   errorType?: string
 ): Promise<void> {
-  if (!env.TRANSCRIPT_KV) {
-    console.warn('TRANSCRIPT_KV not bound, skipping analytics logging.');
+  if (!env.TRANSCRIPT_CACHE) {
+    console.warn('TRANSCRIPT_CACHE not bound, skipping analytics logging.');
     return;
   }
 
@@ -53,12 +53,12 @@ export async function logRequest(
   if (!success) {
     const dailyErrKey = getDailyErrorsKey(dateKey, errorType || 'unknown');
     try {
-      const currentErrors = await env.TRANSCRIPT_KV.get(dailyErrKey);
+      const currentErrors = await env.TRANSCRIPT_CACHE.get(dailyErrKey);
       const newErrorCount = currentErrors ? parseInt(currentErrors, 10) + 1 : 1;
       if(!isNaN(newErrorCount)) {
-        await env.TRANSCRIPT_KV.put(dailyErrKey, newErrorCount.toString(), { expirationTtl: ANALYTICS_TTL_SECONDS * 2 });
+        await env.TRANSCRIPT_CACHE.put(dailyErrKey, newErrorCount.toString(), { expirationTtl: ANALYTICS_TTL_SECONDS * 2 });
       } else {
-        await env.TRANSCRIPT_KV.put(dailyErrKey, "1", { expirationTtl: ANALYTICS_TTL_SECONDS * 2 });
+        await env.TRANSCRIPT_CACHE.put(dailyErrKey, "1", { expirationTtl: ANALYTICS_TTL_SECONDS * 2 });
       }
     } catch (e: any) {
       console.error(`Error updating daily error count (${dailyErrKey}): ${e.message}`);
@@ -73,15 +73,15 @@ export async function logRequest(
  * @returns An object with total requests and error counts (by type).
  */
 export async function getDailyStats(env: any, date: string): Promise<{ requests: number; errors: Record<string, number>; totalErrors: number }> {
-  if (!env.TRANSCRIPT_KV) {
-    console.warn('TRANSCRIPT_KV not bound, cannot get daily stats.');
+  if (!env.TRANSCRIPT_CACHE) {
+    console.warn('TRANSCRIPT_CACHE not bound, cannot get daily stats.');
     return { requests: 0, errors: {}, totalErrors: 0 };
   }
 
   let requestCount = 0;
   const dailyReqKey = getDailyRequestsKey(date);
   try {
-    const reqVal = await env.TRANSCRIPT_KV.get(dailyReqKey);
+    const reqVal = await env.TRANSCRIPT_CACHE.get(dailyReqKey);
     requestCount = reqVal ? parseInt(reqVal, 10) : 0;
     if (isNaN(requestCount)) requestCount = 0;
   } catch (e: any) {
@@ -92,11 +92,11 @@ export async function getDailyStats(env: any, date: string): Promise<{ requests:
   let totalErrors = 0;
   try {
     const listOptions: KVNamespaceListOptions = { prefix: `analytics:errors:${date}:` };
-    const errorKeysResult = await env.TRANSCRIPT_KV.list(listOptions);
+    const errorKeysResult = await env.TRANSCRIPT_CACHE.list(listOptions);
     
     for (const key of errorKeysResult.keys) {
       const errorType = key.name.substring(`analytics:errors:${date}:`.length);
-      const errVal = await env.TRANSCRIPT_KV.get(key.name);
+      const errVal = await env.TRANSCRIPT_CACHE.get(key.name);
       const count = errVal ? parseInt(errVal, 10) : 0;
       if (!isNaN(count)) {
         errors[errorType] = count;
@@ -124,14 +124,14 @@ export async function getPopularVideos(
   env: any,
   limit: number
 ): Promise<Array<{ videoId: string; count: number }>> {
-  if (!env.TRANSCRIPT_KV) {
-    console.warn('TRANSCRIPT_KV not bound, cannot get popular videos.');
+  if (!env.TRANSCRIPT_CACHE) {
+    console.warn('TRANSCRIPT_CACHE not bound, cannot get popular videos.');
     return [];
   }
 
   const popularKey = getPopularVideosWeeklyKey();
   try {
-    const popularData = await env.TRANSCRIPT_KV.get(popularKey);
+    const popularData = await env.TRANSCRIPT_CACHE.get(popularKey);
     if (popularData) {
       const videos = JSON.parse(popularData) as Array<{ videoId: string; count: number }>;
       return videos.slice(0, limit);
@@ -150,8 +150,8 @@ export async function getPopularVideos(
  * @param topN The number of top videos to store in the popular list.
  */
 export async function updatePopularVideosList(env: any, topN: number = 20): Promise<void> {
-    if (!env.TRANSCRIPT_KV) {
-        console.warn('TRANSCRIPT_KV not bound, cannot update popular videos.');
+    if (!env.TRANSCRIPT_CACHE) {
+        console.warn('TRANSCRIPT_CACHE not bound, cannot update popular videos.');
         return;
     }
 
@@ -161,7 +161,7 @@ export async function updatePopularVideosList(env: any, topN: number = 20): Prom
 
     try {
         do {
-            const listResult: KVNamespaceListResult<unknown> = await env.TRANSCRIPT_KV.list({
+            const listResult: KVNamespaceListResult<unknown> = await env.TRANSCRIPT_CACHE.list({
                 prefix: 'analytics:videos:',
                 cursor: currentCursor,
                 limit: 1000, // Max 1000, adjust as needed
@@ -169,7 +169,7 @@ export async function updatePopularVideosList(env: any, topN: number = 20): Prom
 
             for (const key of listResult.keys) {
                 const videoId = key.name.substring('analytics:videos:'.length);
-                const countStr = await env.TRANSCRIPT_KV.get(key.name);
+                const countStr = await env.TRANSCRIPT_CACHE.get(key.name);
                 const count = countStr ? parseInt(countStr, 10) : 0;
                 if (!isNaN(count) && count > 0) {
                     videoCounts.push({ videoId, count });
@@ -189,7 +189,7 @@ export async function updatePopularVideosList(env: any, topN: number = 20): Prom
 
         if (topVideos.length > 0) {
             const popularKey = getPopularVideosWeeklyKey();
-            await env.TRANSCRIPT_KV.put(popularKey, JSON.stringify(topVideos), {
+            await env.TRANSCRIPT_CACHE.put(popularKey, JSON.stringify(topVideos), {
                 expirationTtl: POPULAR_VIDEOS_TTL_SECONDS
             });
             console.log(`Updated popular videos list (${popularKey}) with ${topVideos.length} videos.`);

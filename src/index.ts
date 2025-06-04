@@ -1,86 +1,281 @@
-import OAuthProvider from "@cloudflare/workers-oauth-provider";
-import { McpAgent } from "agents/mcp";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
-import { Octokit } from "octokit";
-import { GitHubHandler } from "./github-handler";
+import { getTranscript } from './tools/transcript';
 
-// Context from the auth process, encrypted & stored in the auth token
-// and provided to the DurableMCP as this.props
-type Props = {
-  login: string;
-  name: string;
-  email: string;
-  accessToken: string;
-};
+export interface Env {
+  TRANSCRIPT_CACHE: KVNamespace;
+}
 
-const ALLOWED_USERNAMES = new Set<string>([
-  // Add GitHub usernames of users who should have access to the image generation tool
-  // For example: 'yourusername', 'coworkerusername'
-]);
+// Simple MCP server implementation for Cloudflare Workers
+class SimpleMCPServer {
+  private env: Env;
 
-export class MyMCP extends McpAgent<Env, {}, Props> {
-  server = new McpServer({
-    name: "Github OAuth Proxy Demo",
-    version: "1.0.0",
-  });
+  constructor(env: Env) {
+    this.env = env;
+  }
 
-  async init() {
-    // Hello, world!
-    this.server.tool("add", "Add two numbers the way only MCP can", { a: z.number(), b: z.number() }, async ({ a, b }) => ({
-      content: [{ type: "text", text: String(a + b) }],
-    }));
+  async handleRequest(request: any) {
+    const { method, params, id } = request;
 
-    // Use the upstream access token to facilitate tools
-    this.server.tool("userInfoOctokit", "Get user info from GitHub, via Octokit", {}, async () => {
-      const octokit = new Octokit({ auth: this.props.accessToken });
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(await octokit.rest.users.getAuthenticated()),
-          },
-        ],
-      };
-    });
-
-    // Dynamically add tools based on the user's login. In this case, I want to limit
-    // access to my Image Generation tool to just me
-    if (ALLOWED_USERNAMES.has(this.props.login)) {
-      this.server.tool(
-        "generateImage",
-        "Generate an image using the `flux-1-schnell` model. Works best with 8 steps.",
-        {
-          prompt: z.string().describe("A text description of the image you want to generate."),
-          steps: z
-            .number()
-            .min(4)
-            .max(8)
-            .default(4)
-            .describe(
-              "The number of diffusion steps; higher values can improve quality but take longer. Must be between 4 and 8, inclusive.",
-            ),
-        },
-        async ({ prompt, steps }) => {
-          const response = await this.env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
-            prompt,
-            steps,
-          });
-
+    try {
+      switch (method) {
+        case 'initialize':
           return {
-            content: [{ type: "image", data: response.image!, mimeType: "image/jpeg" }],
+            jsonrpc: '2.0',
+            id,
+            result: {
+              protocolVersion: '2024-11-05',
+              capabilities: {
+                tools: {}
+              },
+              serverInfo: {
+                name: 'youtube-transcript-remote',
+                version: '1.0.0'
+              }
+            }
           };
-        },
-      );
+
+        case 'tools/list':
+          return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+              tools: [{
+                name: 'get_transcript',
+                description: 'Extract transcript from YouTube video URL',
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    url: {
+                      type: 'string',
+                      description: 'YouTube video URL (any format)'
+                    },
+                    language: {
+                      type: 'string',
+                      description: "Optional language code for the transcript (e.g., 'en', 'es'). Defaults to 'en'."
+                    }
+                  },
+                  required: ['url']
+                }
+              }]
+            }
+          };
+
+        case 'tools/call':
+          const { name, arguments: args } = params;
+          
+          if (name === 'get_transcript') {
+            try {
+              const { url, language = 'en' } = args;
+              const transcript = await getTranscript(url, this.env, language);
+              
+              return {
+                jsonrpc: '2.0',
+                id,
+                result: {
+                  content: [{
+                    type: 'text',
+                    text: transcript
+                  }]
+                }
+              };
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+              
+              return {
+                jsonrpc: '2.0',
+                id,
+                error: {
+                  code: -1,
+                  message: errorMessage
+                }
+              };
+            }
+          } else {
+            return {
+              jsonrpc: '2.0',
+              id,
+              error: {
+                code: -32601,
+                message: `Unknown tool: ${name}`
+              }
+            };
+          }
+
+        default:
+          return {
+            jsonrpc: '2.0',
+            id,
+            error: {
+              code: -32601,
+              message: `Method not found: ${method}`
+            }
+          };
+      }
+    } catch (error) {
+      console.error('Error handling request:', error);
+      return {
+        jsonrpc: '2.0',
+        id,
+        error: {
+          code: -32603,
+          message: 'Internal error'
+        }
+      };
     }
   }
 }
 
-export default new OAuthProvider({
-  apiRoute: "/sse",
-  apiHandler: MyMCP.mount("/sse") as any,
-  defaultHandler: GitHubHandler as any,
-  authorizeEndpoint: "/authorize",
-  tokenEndpoint: "/token",
-  clientRegistrationEndpoint: "/register",
-});
+// Cloudflare Workers fetch handler
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+    
+    // Handle CORS preflight requests
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Cache-Control, Accept",
+          "Access-Control-Max-Age": "86400"
+        }
+      });
+    }
+
+    const mcpServer = new SimpleMCPServer(env);
+
+    // Handle SSE endpoint for MCP
+    if (url.pathname === "/sse") {
+      // Check if this is a POST request with JSON-RPC data
+      if (request.method === "POST") {
+        try {
+          const requestData = await request.json();
+          const response = await mcpServer.handleRequest(requestData);
+          
+          // Return as SSE format
+          const sseData = `data: ${JSON.stringify(response)}\n\n`;
+          
+          return new Response(sseData, {
+            headers: {
+              "Content-Type": "text/event-stream",
+              "Cache-Control": "no-cache",
+              "Connection": "keep-alive",
+              "Access-Control-Allow-Origin": "*",
+              "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+              "Access-Control-Allow-Headers": "Content-Type, Cache-Control, Accept",
+            }
+          });
+        } catch (error) {
+          console.error('SSE POST error:', error);
+          const errorResponse = `data: ${JSON.stringify({
+            jsonrpc: "2.0",
+            id: null,
+            error: {
+              code: -32603,
+              message: "Internal error"
+            }
+          })}\n\n`;
+          
+          return new Response(errorResponse, {
+            headers: {
+              "Content-Type": "text/event-stream",
+              "Cache-Control": "no-cache",
+              "Access-Control-Allow-Origin": "*"
+            }
+          });
+        }
+      }
+      
+      // Handle GET request for SSE connection
+      const { readable, writable } = new TransformStream();
+      const writer = writable.getWriter();
+      const encoder = new TextEncoder();
+      
+      // Send initial connection message
+      ctx.waitUntil((async () => {
+        try {
+          // Send server ready message
+          await writer.write(encoder.encode(`data: ${JSON.stringify({
+            jsonrpc: "2.0",
+            method: "notifications/initialized",
+            params: {}
+          })}\n\n`));
+          
+          // Keep connection alive
+          const keepAlive = setInterval(() => {
+            writer.write(encoder.encode(`: keepalive\n\n`)).catch(() => {
+              clearInterval(keepAlive);
+            });
+          }, 30000);
+          
+        } catch (error) {
+          console.error('SSE stream error:', error);
+        }
+      })());
+      
+      return new Response(readable, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Cache-Control, Accept",
+        }
+      });
+    }
+    
+    // Handle JSON-RPC over HTTP POST
+    if (url.pathname === "/mcp" && request.method === "POST") {
+      try {
+        const requestData = await request.json();
+        const response = await mcpServer.handleRequest(requestData);
+        
+        return new Response(JSON.stringify(response), {
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        });
+      } catch (error) {
+        console.error('MCP request error:', error);
+        return new Response(JSON.stringify({
+          jsonrpc: "2.0",
+          id: null,
+          error: {
+            code: -32603,
+            message: "Internal error"
+          }
+        }), {
+          status: 500,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        });
+      }
+    }
+    
+    // Handle root path with basic info
+    if (url.pathname === "/") {
+      return new Response(JSON.stringify({
+        name: "YouTube Transcript Remote MCP Server",
+        version: "1.0.0",
+        description: "Remote MCP server for extracting YouTube video transcripts",
+        endpoints: {
+          sse: "/sse",
+          mcp: "/mcp"
+        },
+        tools: ["get_transcript"],
+        status: "ready"
+      }), {
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      });
+    }
+    
+    return new Response("Not Found", { status: 404 });
+  }
+};

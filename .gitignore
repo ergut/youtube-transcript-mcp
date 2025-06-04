@@ -170,3 +170,7 @@ dist
 
 .dev.vars
 .wrangler/
+
+.contextor_scope
+project_scope.md
+**.bak

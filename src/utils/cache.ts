@@ -1,4 +1,4 @@
-// KV Namespace binding, e.g., from wrangler.toml: TRANSCRIPT_KV
+// KV Namespace binding, e.g., from wrangler.toml: TRANSCRIPT_CACHE
 // Ensure this is bound in your Cloudflare Worker environment.
 
 const SUCCESSFUL_TRANSCRIPT_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
@@ -20,13 +20,13 @@ export async function getCachedTranscript(
   videoId: string, 
   language: string
 ): Promise<string | null> {
-  if (!env.TRANSCRIPT_KV) {
-    console.warn('TRANSCRIPT_KV namespace not bound in environment.');
+  if (!env.TRANSCRIPT_CACHE) {
+    console.warn('TRANSCRIPT_CACHE namespace not bound in environment.');
     return null;
   }
   const cacheKey = getTranscriptCacheKey(videoId, language);
   try {
-    return await env.TRANSCRIPT_KV.get(cacheKey);
+    return await env.TRANSCRIPT_CACHE.get(cacheKey);
   } catch (e: any) {
     console.error(`Error getting from KV (${cacheKey}): ${e.message}`);
     return null;
@@ -48,14 +48,14 @@ export async function setCachedTranscript(
   data: string,
   isError: boolean
 ): Promise<void> {
-  if (!env.TRANSCRIPT_KV) {
-    console.warn('TRANSCRIPT_KV namespace not bound in environment.');
+  if (!env.TRANSCRIPT_CACHE) {
+    console.warn('TRANSCRIPT_CACHE namespace not bound in environment.');
     return;
   }
   const cacheKey = getTranscriptCacheKey(videoId, language);
   const ttl = isError ? ERROR_RESPONSE_TTL_SECONDS : SUCCESSFUL_TRANSCRIPT_TTL_SECONDS;
   try {
-    await env.TRANSCRIPT_KV.put(cacheKey, data, { expirationTtl: ttl });
+    await env.TRANSCRIPT_CACHE.put(cacheKey, data, { expirationTtl: ttl });
   } catch (e: any) {
     console.error(`Error putting to KV (${cacheKey}): ${e.message}`);
   }
@@ -81,19 +81,19 @@ function getDailyRequestsAnalyticsCacheKey(): string {
  * @param videoId The YouTube video ID.
  */
 export async function incrementVideoRequestCount(env: any, videoId: string): Promise<void> {
-  if (!env.TRANSCRIPT_KV) {
-    console.warn('TRANSCRIPT_KV namespace not bound for analytics.');
+  if (!env.TRANSCRIPT_CACHE) {
+    console.warn('TRANSCRIPT_CACHE namespace not bound for analytics.');
     return;
   }
   const cacheKey = getVideoAnalyticsCacheKey(videoId);
   try {
-    const currentValue = await env.TRANSCRIPT_KV.get(cacheKey);
+    const currentValue = await env.TRANSCRIPT_CACHE.get(cacheKey);
     const count = currentValue ? parseInt(currentValue, 10) : 0;
     if (isNaN(count)) {
         console.warn(`Invalid count for ${cacheKey}: ${currentValue}. Resetting to 1.`);
-        await env.TRANSCRIPT_KV.put(cacheKey, '1');
+        await env.TRANSCRIPT_CACHE.put(cacheKey, '1');
     } else {
-        await env.TRANSCRIPT_KV.put(cacheKey, (count + 1).toString());
+        await env.TRANSCRIPT_CACHE.put(cacheKey, (count + 1).toString());
     }
   } catch (e: any) {
     console.error(`Error incrementing video request count (${cacheKey}): ${e.message}`);
@@ -105,19 +105,19 @@ export async function incrementVideoRequestCount(env: any, videoId: string): Pro
  * @param env The Worker environment object containing the KV namespace.
  */
 export async function trackDailyRequests(env: any): Promise<void> {
-  if (!env.TRANSCRIPT_KV) {
-    console.warn('TRANSCRIPT_KV namespace not bound for analytics.');
+  if (!env.TRANSCRIPT_CACHE) {
+    console.warn('TRANSCRIPT_CACHE namespace not bound for analytics.');
     return;
   }
   const cacheKey = getDailyRequestsAnalyticsCacheKey();
   try {
-    const currentValue = await env.TRANSCRIPT_KV.get(cacheKey);
+    const currentValue = await env.TRANSCRIPT_CACHE.get(cacheKey);
     const count = currentValue ? parseInt(currentValue, 10) : 0;
     if (isNaN(count)) {
         console.warn(`Invalid count for ${cacheKey}: ${currentValue}. Resetting to 1.`);
-        await env.TRANSCRIPT_KV.put(cacheKey, '1');
+        await env.TRANSCRIPT_CACHE.put(cacheKey, '1');
     } else {
-        await env.TRANSCRIPT_KV.put(cacheKey, (count + 1).toString());
+        await env.TRANSCRIPT_CACHE.put(cacheKey, (count + 1).toString());
     }
   } catch (e: any) {
     console.error(`Error tracking daily requests (${cacheKey}): ${e.message}`);
