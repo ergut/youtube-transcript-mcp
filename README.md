@@ -1,6 +1,12 @@
-# YouTube Transcript Remote MCP Server
+<div align="center">
+  <img src="assets/logo.png" alt="YouTube Transcript MCP Logo" width="200"/>
+  
+  # YouTube Transcript Remote MCP Server
 
-A remote Model Context Protocol (MCP) server that enables Claude AI to extract transcripts from YouTube videos. This is the **first remote YouTube transcript MCP server**, offering zero-setup access for users on any platform including mobile devices.
+  The **first remote** Model Context Protocol (MCP) server that enables Claude AI to extract transcripts from YouTube videos. This server offers zero-setup access for users on any platform including mobile devices.
+</div>
+
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ergut/youtube-transcript-mcp)
 
 ## 🌟 Features
 
@@ -14,7 +20,11 @@ A remote Model Context Protocol (MCP) server that enables Claude AI to extract t
 
 ## 🚀 Quick Start
 
-### For Claude Desktop Users
+### Option 1: Use Our Hosted Server (Recommended)
+
+The easiest way to get started - just add our public server to your Claude Desktop:
+
+#### For Claude Desktop Users
 
 1. **Open Claude Desktop Settings**
    - Click on "Claude" in the menu bar → "Settings"
@@ -47,11 +57,26 @@ A remote Model Context Protocol (MCP) server that enables Claude AI to extract t
    
    Look for the tools icon (🔧) in the chat interface. You should see the `get_transcript` tool available.
 
+### Option 2: Deploy Your Own
+
+Want to run your own instance? Deploy to Cloudflare Workers in one click:
+
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ergut/youtube-transcript-mcp)
+
+Or manually:
+
+```bash
+git clone https://github.com/ergut/youtube-transcript-mcp
+cd youtube-transcript-mcp
+npm install
+npm run deploy
+```
+
 ### For Other MCP Clients
 
 The server supports the standard MCP protocol and can be used with any compatible client:
 
-- **Server URL**: `https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/sse`
+- **Public Server URL**: `https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/sse`
 - **Transport**: Server-Sent Events (SSE) or HTTP
 - **Authentication**: None required (public server)
 
@@ -247,18 +272,28 @@ curl -X POST https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/mcp \
 - **Check logs**: Look in `~/.mcp-auth/` for debug logs
 - **Test direct connection**: Use `npx -p mcp-remote@latest mcp-remote-client https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/sse`
 - **Verify server status**: Visit `https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/`
+- **Open an issue**: [GitHub Issues](https://github.com/ergut/youtube-transcript-mcp/issues)
 
 ## 🤝 Contributing
 
 This is an open-source project. Contributions are welcome!
 
-- **Report Issues**: Found a bug? Please report it with details
-- **Feature Requests**: Have ideas for improvements? Let us know
+- **Report Issues**: Found a bug? Please [open an issue](https://github.com/ergut/youtube-transcript-mcp/issues)
+- **Feature Requests**: Have ideas for improvements? Let us know!
 - **Code Contributions**: PRs welcome for enhancements
+
+### Development Setup
+
+```bash
+git clone https://github.com/ergut/youtube-transcript-mcp
+cd youtube-transcript-mcp
+npm install
+npm run dev
+```
 
 ## 📜 License
 
-This project is open source and available under the MIT License.
+This project is open source and available under the [MIT License](LICENSE).
 
 ## 🙏 Acknowledgments
 
