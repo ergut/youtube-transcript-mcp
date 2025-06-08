@@ -61,12 +61,12 @@ class SimpleMCPServer {
 
         case 'tools/call':
           const { name, arguments: args } = params;
-          
+
           if (name === 'get_transcript') {
             try {
               const { url, language = 'en' } = args;
               const transcript = await getTranscript(url, this.env, language);
-              
+
               return {
                 jsonrpc: '2.0',
                 id,
@@ -79,7 +79,7 @@ class SimpleMCPServer {
               };
             } catch (error) {
               const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-              
+
               return {
                 jsonrpc: '2.0',
                 id,
@@ -124,11 +124,11 @@ class SimpleMCPServer {
   }
 }
 
-// Cloudflare Workers fetch handler
+// Export default object for ES Module format
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
-    
+
     // Handle CORS preflight requests
     if (request.method === "OPTIONS") {
       return new Response(null, {
@@ -151,10 +151,10 @@ export default {
         try {
           const requestData = await request.json();
           const response = await mcpServer.handleRequest(requestData);
-          
+
           // Return as SSE format
           const sseData = `data: ${JSON.stringify(response)}\n\n`;
-          
+
           return new Response(sseData, {
             headers: {
               "Content-Type": "text/event-stream",
@@ -175,7 +175,7 @@ export default {
               message: "Internal error"
             }
           })}\n\n`;
-          
+
           return new Response(errorResponse, {
             headers: {
               "Content-Type": "text/event-stream",
@@ -185,12 +185,12 @@ export default {
           });
         }
       }
-      
+
       // Handle GET request for SSE connection
       const { readable, writable } = new TransformStream();
       const writer = writable.getWriter();
       const encoder = new TextEncoder();
-      
+
       // Send initial connection message
       ctx.waitUntil((async () => {
         try {
@@ -200,19 +200,19 @@ export default {
             method: "notifications/initialized",
             params: {}
           })}\n\n`));
-          
+
           // Keep connection alive
           const keepAlive = setInterval(() => {
             writer.write(encoder.encode(`: keepalive\n\n`)).catch(() => {
               clearInterval(keepAlive);
             });
           }, 30000);
-          
+
         } catch (error) {
           console.error('SSE stream error:', error);
         }
       })());
-      
+
       return new Response(readable, {
         headers: {
           "Content-Type": "text/event-stream",
@@ -224,13 +224,13 @@ export default {
         }
       });
     }
-    
+
     // Handle JSON-RPC over HTTP POST
     if (url.pathname === "/mcp" && request.method === "POST") {
       try {
         const requestData = await request.json();
         const response = await mcpServer.handleRequest(requestData);
-        
+
         return new Response(JSON.stringify(response), {
           headers: {
             "Content-Type": "application/json",
@@ -255,7 +255,7 @@ export default {
         });
       }
     }
-    
+
     // Handle root path with basic info
     if (url.pathname === "/") {
       return new Response(JSON.stringify({
@@ -275,7 +275,7 @@ export default {
         }
       });
     }
-    
+
     return new Response("Not Found", { status: 404 });
   }
 };
