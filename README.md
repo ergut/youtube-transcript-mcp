@@ -42,7 +42,7 @@ The easiest way to get started - just add our public server to your Claude Deskt
          "command": "npx",
          "args": [
            "mcp-remote",
-           "https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/sse"
+           "https://youtube-transcript-mcp.ergut.workers.dev/sse"
          ]
        }
      }
@@ -76,7 +76,7 @@ npm run deploy
 
 The server supports the standard MCP protocol and can be used with any compatible client:
 
-- **Public Server URL**: `https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/sse`
+- **Public Server URL**: `https://youtube-transcript-mcp.ergut.workers.dev/sse`
 - **Transport**: Server-Sent Events (SSE) or HTTP
 - **Authentication**: None required (public server)
 
@@ -146,7 +146,7 @@ To enable detailed logging for troubleshooting:
       "command": "npx",
       "args": [
         "mcp-remote",
-        "https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/sse",
+        "https://youtube-transcript-mcp.ergut.workers.dev/sse",
         "--debug"
       ]
     }
@@ -167,7 +167,7 @@ To force HTTP transport instead of SSE:
       "command": "npx",
       "args": [
         "mcp-remote",
-        "https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/mcp",
+        "https://youtube-transcript-mcp.ergut.workers.dev/mcp",
         "--transport",
         "http-only"
       ]
@@ -232,7 +232,7 @@ Server information and status endpoint.
 
 **Example Direct API Call:**
 ```bash
-curl -X POST https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/mcp \
+curl -X POST https://youtube-transcript-mcp.ergut.workers.dev/mcp \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
@@ -270,8 +270,8 @@ curl -X POST https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/mcp \
 ### Getting Help
 
 - **Check logs**: Look in `~/.mcp-auth/` for debug logs
-- **Test direct connection**: Use `npx -p mcp-remote@latest mcp-remote-client https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/sse`
-- **Verify server status**: Visit `https://youtube-transcript-mcp.youtube-mcp-server.workers.dev/`
+- **Test direct connection**: Use `npx -p mcp-remote@latest mcp-remote-client https://youtube-transcript-mcp.ergut.workers.dev/sse`
+- **Verify server status**: Visit `https://youtube-transcript-mcp.ergut.workers.dev/`
 - **Open an issue**: [GitHub Issues](https://github.com/ergut/youtube-transcript-mcp/issues)
 
 ## 🤝 Contributing
